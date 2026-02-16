@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Store</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-dark bg-dark">
+    <div class="container-fluid">
+        <span class="navbar-brand">🏪 My Store Management</span>
+        <div>
+            <a href="dashboard.html" class="btn btn-primary btn-sm me-2">Browse Stores</a>
+            <button onclick="logout()" class="btn btn-danger btn-sm">Logout</button>
+        </div>
+    </div>
+</nav>
+
+<div class="container mt-4">
+
+    <!-- Create Store Section -->
+    <div id="createStoreSection" class="card p-4 mb-4" style="display:none;">
+        <h3>Create Your Store</h3>
+        <p>You don't have a store yet. Create one to start selling!</p>
+        <div class="row">
+            <div class="col-md-4">
+                <input id="storeName" class="form-control mb-2" placeholder="Store Name">
+            </div>
+            <div class="col-md-6">
+                <input id="storeDesc" class="form-control mb-2" placeholder="Store Description">
+            </div>
+            <div class="col-md-2">
+                <button onclick="createStore()" class="btn btn-success">Create Store</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Store Info Section -->
+    <div id="storeInfoSection" style="display:none;">
+        <div class="card p-4 mb-4">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h3 id="storeTitle"></h3>
+                    <p id="storeDescription" class="text-muted"></p>
+                </div>
+                <button onclick="generateTableQRs()" class="btn btn-success">
+                    📱 Generate Table QR Codes
+                </button>
+            </div>
+        </div>
+
+        <!-- Add Service -->
+        <div class="card p-4 mb-4">
+            <h4>➕ Add New Service/Product</h4>
+            <div class="row">
+                <div class="col-md-3">
+                    <input id="serviceName" class="form-control" placeholder="Service Name">
+                </div>
+                <div class="col-md-4">
+                    <input id="serviceDesc" class="form-control" placeholder="Description">
+                </div>
+                <div class="col-md-2">
+                    <input id="servicePrice" type="number" class="form-control" placeholder="Price">
+                </div>
+                <div class="col-md-3">
+                    <button onclick="addService()" class="btn btn-success">Add Service</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- My Services -->
+        <h4>🛍️ My Services</h4>
+        <div id="myServices" class="row mb-4"></div>
+
+        <hr>
+
+        <!-- Store Orders -->
+        <h4>📦 Orders for My Store</h4>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Order ID</th>
+                    <th>Type</th>
+                    <th>Table/Address</th>
+                    <th>Customer</th>
+                    <th>Phone</th>
+                    <th>Item</th>
+                    <th>Qty</th>
+                    <th>Price</th>
+                    <th>Status</th>
+                    <th>Notes</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="storeOrders"></tbody>
+        </table>
+    </div>
+
+</div>
+
+<script src="script.js"></script>
+<script>
+checkAuth("user")
+loadMyStore()
+</script>
+
+</body>
+</html>
