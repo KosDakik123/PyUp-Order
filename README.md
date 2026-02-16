@@ -689,7 +689,7 @@ If you have any questions or issues:
 
 1. Check the [Issues](https://github.com/YOUR_USERNAME/restaurant-ordering-system/issues) page
 2. Create a new issue if your problem isn't already listed
-3. Contact: your-email@example.com
+3. Contact: myfirmd.o.o@gmail.com
 
 ---
 
