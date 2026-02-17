@@ -1,9 +1,10 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from jose import jwt, JWTError
+from jose import jwt
+import os, uuid
 
 import models
 from database import engine, SessionLocal
@@ -11,34 +12,65 @@ from auth import hash_password, verify_password, create_access_token, SECRET_KEY
 
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
+# ── Auto-migrate new columns onto existing databases ─────────────────────────
+from sqlalchemy import text, inspect as sa_inspect
+def _migrate(db):
+    insp = sa_inspect(engine)
+    def has(table, col):
+        return col in [c["name"] for c in insp.get_columns(table)]
+    pairs = [
+        ("stores", "category",          "VARCHAR DEFAULT 'services'"),
+        ("stores", "menu_style",         "VARCHAR DEFAULT 'grid'"),
+        ("stores", "primary_color",      "VARCHAR DEFAULT '#667eea'"),
+        ("stores", "secondary_color",    "VARCHAR DEFAULT '#764ba2'"),
+        ("stores", "accent_color",       "VARCHAR DEFAULT '#28a745'"),
+        ("stores", "theme",              "VARCHAR DEFAULT 'modern'"),
+        ("stores", "banner_image_url",   "VARCHAR"),
+        ("stores", "logo_url",           "VARCHAR"),
+        ("stores", "tagline",            "VARCHAR"),
+        ("stores", "welcome_message",    "TEXT"),
+        ("stores", "footer_text",        "VARCHAR"),
+        ("services", "image_url",        "VARCHAR"),
+    ]
+    for table, col, typedef in pairs:
+        if not has(table, col):
+            db.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {typedef}"))
+    db.commit()
 
+_db = SessionLocal()
+try:   _migrate(_db)
+finally: _db.close()
+# ─────────────────────────────────────────────────────────────────────────────
+
+UPLOAD_DIR = "static/uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# Allowed image dimensions
+PRODUCT_SIZES = {(400, 400), (800, 600)}
+BANNER_SIZES  = {(1200, 400), (1920, 480)}
+LOGO_SIZES    = {(200, 200), (400, 400)}
+ALL_SIZES     = PRODUCT_SIZES | BANNER_SIZES | LOGO_SIZES
+
+app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["*"], allow_credentials=True,
+    allow_methods=["*"], allow_headers=["*"],
 )
-
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 
 def get_db():
     db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    try:     yield db
+    finally: db.close()
 
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("sub")
-        user = db.query(models.User).filter(models.User.id == user_id).first()
+        user = db.query(models.User).filter(models.User.id == payload.get("sub")).first()
         if not user:
             raise HTTPException(status_code=401, detail="Invalid token")
         return user
@@ -56,21 +88,16 @@ def get_admin(user=Depends(get_current_user)):
 
 @app.post("/register")
 def register(data: dict, db: Session = Depends(get_db)):
-    # Check if username or email already exists
     existing = db.query(models.User).filter(
         (models.User.username == data["username"]) | (models.User.email == data["email"])
     ).first()
-    
     if existing:
         raise HTTPException(status_code=400, detail="Username or email already exists")
-    
     user = models.User(
-        username=data["username"],
-        email=data["email"],
+        username=data["username"], email=data["email"],
         hashed_password=hash_password(data["password"])
     )
-    db.add(user)
-    db.commit()
+    db.add(user); db.commit()
     return {"message": "User created"}
 
 
@@ -79,229 +106,235 @@ def login(data: dict, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.username == data["username"]).first()
     if not user or not verify_password(data["password"], user.hashed_password):
         raise HTTPException(status_code=400, detail="Invalid credentials")
-
     token = create_access_token(user.id)
     return {"access_token": token, "role": user.role, "user_id": user.id}
 
 
+# ============= IMAGE UPLOAD =============
+
+@app.post("/upload-image")
+async def upload_image(file: UploadFile = File(...), user=Depends(get_current_user)):
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Only image files are allowed")
+    try:
+        from PIL import Image
+        import io
+        contents = await file.read()
+        img = Image.open(io.BytesIO(contents))
+        w, h = img.size
+    except Exception:
+        raise HTTPException(status_code=400, detail="Could not read image")
+
+    if (w, h) not in ALL_SIZES:
+        allowed = ", ".join(f"{a}×{b}" for a, b in sorted(ALL_SIZES))
+        raise HTTPException(status_code=400,
+            detail=f"Image size {w}×{h} not allowed. Accepted: {allowed}")
+
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "png"
+    filename = f"{uuid.uuid4()}.{ext}"
+    with open(os.path.join(UPLOAD_DIR, filename), "wb") as f:
+        f.write(contents)
+    return {"url": f"/static/uploads/{filename}", "width": w, "height": h}
+
+
 # ============= STORES =============
+
+def _store_dict(s):
+    return {
+        "id": s.id, "name": s.name, "description": s.description,
+        "owner_id": s.owner_id, "owner_name": s.owner.username,
+        "category":       s.category       or "services",
+        "menu_style":     s.menu_style      or "grid",
+        "primary_color":  s.primary_color   or "#667eea",
+        "secondary_color":s.secondary_color or "#764ba2",
+        "accent_color":   s.accent_color    or "#28a745",
+        "theme":          s.theme           or "modern",
+        "banner_image_url": s.banner_image_url,
+        "logo_url":         s.logo_url,
+        "tagline":          s.tagline,
+        "welcome_message":  s.welcome_message,
+        "footer_text":      s.footer_text,
+    }
+
 
 @app.post("/stores")
 def create_store(data: dict, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    """Any logged-in user can create a store"""
+    category = data.get("category", "services")
+    if category not in models.STORE_CATEGORIES:
+        category = "services"
     store = models.Store(
-        name=data["name"],
-        description=data["description"],
-        owner_id=user.id
+        name=data["name"], description=data["description"],
+        owner_id=user.id, category=category
     )
-    db.add(store)
-    db.commit()
-    db.refresh(store)
+    db.add(store); db.commit(); db.refresh(store)
     return {"message": "Store created", "store_id": store.id}
 
 
 @app.get("/stores")
-def get_all_stores(db: Session = Depends(get_db)):
-    """Get all stores"""
-    stores = db.query(models.Store).all()
-    return [
-        {
-            "id": s.id,
-            "name": s.name,
-            "description": s.description,
-            "owner_id": s.owner_id,
-            "owner_name": s.owner.username
-        }
-        for s in stores
-    ]
+def get_all_stores(category: str = None, q: str = None, db: Session = Depends(get_db)):
+    """Get stores, optionally filtered by category and/or search query."""
+    query = db.query(models.Store)
+    if category and category != "all":
+        query = query.filter(models.Store.category == category)
+    if q:
+        query = query.filter(
+            models.Store.name.ilike(f"%{q}%") |
+            models.Store.description.ilike(f"%{q}%")
+        )
+    return [_store_dict(s) for s in query.all()]
+
+
+@app.get("/stores/{store_id}")
+def get_store(store_id: str, db: Session = Depends(get_db)):
+    s = db.query(models.Store).filter(models.Store.id == store_id).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Store not found")
+    return _store_dict(s)
 
 
 @app.get("/my-stores")
 def get_my_stores(db: Session = Depends(get_db), user=Depends(get_current_user)):
-    """Get stores owned by current user"""
     stores = db.query(models.Store).filter(models.Store.owner_id == user.id).all()
-    return [
-        {
-            "id": s.id,
-            "name": s.name,
-            "description": s.description,
-            "services_count": len(s.services)
-        }
-        for s in stores
-    ]
+    return [{**_store_dict(s), "services_count": len(s.services)} for s in stores]
+
+
+@app.put("/stores/{store_id}/theme")
+def update_store_theme(store_id: str, data: dict, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    store = db.query(models.Store).filter(models.Store.id == store_id).first()
+    if not store:
+        raise HTTPException(status_code=404, detail="Store not found")
+    if store.owner_id != user.id and user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+    for f in ["name","description","tagline","welcome_message","footer_text",
+              "primary_color","secondary_color","accent_color","theme",
+              "banner_image_url","logo_url","category","menu_style"]:
+        if f in data:
+            setattr(store, f, data[f])
+    db.commit()
+    return {"message": "Store updated"}
+
+
+@app.delete("/stores/{store_id}")
+def delete_store(store_id: str, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    store = db.query(models.Store).filter(models.Store.id == store_id).first()
+    if not store:
+        raise HTTPException(status_code=404, detail="Store not found")
+    if store.owner_id != user.id and user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+    # Cascade-delete orders and services first
+    db.query(models.Order).filter(models.Order.store_id == store_id).delete()
+    db.query(models.Service).filter(models.Service.store_id == store_id).delete()
+    db.delete(store)
+    db.commit()
+    return {"message": "Store deleted"}
 
 
 # ============= SERVICES =============
 
+def _svc(s):
+    return {"id": s.id, "name": s.name, "description": s.description,
+            "price": s.price, "store_id": s.store_id, "image_url": s.image_url}
+
+
 @app.post("/stores/{store_id}/services")
 def create_service(store_id: str, data: dict, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    """Store owner can add services to their store"""
     store = db.query(models.Store).filter(models.Store.id == store_id).first()
-    
     if not store:
         raise HTTPException(status_code=404, detail="Store not found")
-    
     if store.owner_id != user.id and user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
-    
     service = models.Service(
-        name=data["name"],
-        description=data["description"],
-        price=data["price"],
-        store_id=store_id
+        name=data["name"], description=data["description"],
+        price=data["price"], store_id=store_id, image_url=data.get("image_url")
     )
-    db.add(service)
-    db.commit()
+    db.add(service); db.commit()
     return {"message": "Service created"}
+
+
+@app.delete("/stores/{store_id}/services/{service_id}")
+def delete_service(store_id: str, service_id: str, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    store = db.query(models.Store).filter(models.Store.id == store_id).first()
+    if not store:
+        raise HTTPException(status_code=404, detail="Store not found")
+    if store.owner_id != user.id and user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+    svc = db.query(models.Service).filter(models.Service.id == service_id).first()
+    if svc:
+        db.delete(svc); db.commit()
+    return {"message": "Deleted"}
 
 
 @app.get("/stores/{store_id}/services")
 def get_store_services(store_id: str, db: Session = Depends(get_db)):
-    """Get all services from a specific store"""
     services = db.query(models.Service).filter(models.Service.store_id == store_id).all()
-    return [
-        {
-            "id": s.id,
-            "name": s.name,
-            "description": s.description,
-            "price": s.price,
-            "store_id": s.store_id
-        }
-        for s in services
-    ]
+    return [_svc(s) for s in services]
 
 
 @app.get("/services")
 def get_all_services(db: Session = Depends(get_db)):
-    """Get all services from all stores"""
-    services = db.query(models.Service).all()
-    return [
-        {
-            "id": s.id,
-            "name": s.name,
-            "description": s.description,
-            "price": s.price,
-            "store_name": s.store.name,
-            "store_id": s.store_id
-        }
-        for s in services
-    ]
+    return [{**_svc(s), "store_name": s.store.name} for s in db.query(models.Service).all()]
 
 
 # ============= ORDERS =============
 
 @app.post("/orders")
 def create_order(data: dict, db: Session = Depends(get_db)):
-    """Create order - supports both logged-in users and guests"""
     service = db.query(models.Service).filter(models.Service.id == data["service_id"]).first()
-    
     if not service:
         raise HTTPException(status_code=404, detail="Service not found")
-    
-    # Create order (guest or logged-in user)
     order = models.Order(
-        user_id=data.get("user_id"),  # Can be None for guests
-        service_id=service.id,
-        store_id=service.store_id,
+        user_id=data.get("user_id"), service_id=service.id, store_id=service.store_id,
         order_type=data.get("order_type", "dine-in"),
-        table_number=data.get("table_number"),
-        delivery_address=data.get("delivery_address"),
-        customer_name=data.get("customer_name"),
-        customer_phone=data.get("customer_phone"),
-        notes=data.get("notes"),
-        quantity=data.get("quantity", 1)
+        table_number=data.get("table_number"), delivery_address=data.get("delivery_address"),
+        customer_name=data.get("customer_name"), customer_phone=data.get("customer_phone"),
+        notes=data.get("notes"), quantity=data.get("quantity", 1)
     )
-    db.add(order)
-    db.commit()
+    db.add(order); db.commit()
     return {"message": "Order created", "order_id": order.id}
 
 
 @app.get("/orders")
 def get_my_orders(db: Session = Depends(get_db), user=Depends(get_current_user)):
-    """Get orders placed by current user"""
     orders = db.query(models.Order).filter(models.Order.user_id == user.id).all()
-    return [
-        {
-            "id": o.id,
-            "status": o.status,
-            "service_name": o.service.name,
-            "store_name": o.store.name,
-            "price": o.service.price,
-            "created_at": o.created_at
-        }
-        for o in orders
-    ]
+    return [{"id": o.id, "status": o.status, "service_name": o.service.name,
+             "store_name": o.store.name, "price": o.service.price, "created_at": o.created_at}
+            for o in orders]
 
 
 @app.get("/store-orders/{store_id}")
 def get_store_orders(store_id: str, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    """Store owner gets orders for their store"""
     store = db.query(models.Store).filter(models.Store.id == store_id).first()
-    
     if not store:
         raise HTTPException(status_code=404, detail="Store not found")
-    
     if store.owner_id != user.id and user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
-    
-    orders = db.query(models.Order).filter(models.Order.store_id == store_id).all()
-    return [
-        {
-            "id": o.id,
-            "status": o.status,
-            "customer_name": o.customer_name or (o.user.username if o.user else "Guest"),
-            "customer_phone": o.customer_phone,
-            "service_name": o.service.name,
-            "price": o.service.price,
-            "quantity": o.quantity,
-            "order_type": o.order_type,
-            "table_number": o.table_number,
-            "delivery_address": o.delivery_address,
-            "notes": o.notes,
-            "created_at": o.created_at
-        }
-        for o in orders
-    ]
+    return [{"id": o.id, "status": o.status,
+             "customer_name": o.customer_name or (o.user.username if o.user else "Guest"),
+             "customer_phone": o.customer_phone, "service_name": o.service.name,
+             "price": o.service.price, "quantity": o.quantity, "order_type": o.order_type,
+             "table_number": o.table_number, "delivery_address": o.delivery_address,
+             "notes": o.notes, "created_at": o.created_at}
+            for o in db.query(models.Order).filter(models.Order.store_id == store_id).all()]
 
 
 @app.put("/orders/{order_id}")
 def update_order(order_id: str, data: dict, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    """Store owner or admin can update order status"""
     order = db.query(models.Order).filter(models.Order.id == order_id).first()
-    
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    
     store = db.query(models.Store).filter(models.Store.id == order.store_id).first()
-    
     if store.owner_id != user.id and user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
-    
-    order.status = data["status"]
-    db.commit()
+    order.status = data["status"]; db.commit()
     return {"message": "Order updated"}
 
 
-# ============= ADMIN =============
-
 @app.get("/admin/orders")
 def admin_orders(db: Session = Depends(get_db), admin=Depends(get_admin)):
-    """Admin sees all orders"""
     orders = db.query(models.Order).all()
-    return [
-        {
-            "id": o.id,
-            "status": o.status,
-            "customer_name": o.customer_name or (o.user.username if o.user else "Guest"),
-            "customer_phone": o.customer_phone,
-            "store_name": o.store.name,
-            "service_name": o.service.name,
-            "price": o.service.price,
-            "quantity": o.quantity,
-            "order_type": o.order_type,
-            "table_number": o.table_number,
-            "delivery_address": o.delivery_address,
-            "created_at": o.created_at
-        }
-        for o in orders
-    ]
+    return [{"id": o.id, "status": o.status,
+             "customer_name": o.customer_name or (o.user.username if o.user else "Guest"),
+             "store_name": o.store.name, "service_name": o.service.name,
+             "price": o.service.price, "quantity": o.quantity,
+             "order_type": o.order_type, "created_at": o.created_at}
+            for o in orders]
