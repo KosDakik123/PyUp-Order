@@ -172,7 +172,7 @@ async function loadAllServices() {
                 ${imgHtml}
                 <h5>${s.name}</h5>
                 <p>${s.description}</p>
-                <p><strong>$${s.price}</strong></p>
+                <p><strong>€${s.price}</strong></p>
                 <small class="text-muted">from: ${s.store_name}</small>
                 <a href="store-view.html?store=${s.store_id}" class="btn btn-outline-primary btn-sm mt-2">
                     View Store
@@ -205,7 +205,7 @@ async function loadMyServices() {
                 <div class="card-body">
                     <h5>${s.name}</h5>
                     <p>${s.description}</p>
-                    <p><strong>$${s.price}</strong></p>
+                    <p><strong>€${s.price}</strong></p>
                 </div>
             </div>
         </div>
@@ -279,7 +279,7 @@ async function loadMyOrders() {
             <td>${o.id.substring(0, 8)}…</td>
             <td>${o.store_name}</td>
             <td>${o.service_name}</td>
-            <td>$${o.price}</td>
+            <td>€${o.price}</td>
             <td><span class="badge bg-${o.status === 'Completed' ? 'success' : 'warning'}">${o.status}</span></td>
             <td>${new Date(o.created_at).toLocaleDateString()}</td>
         </tr>
@@ -314,7 +314,7 @@ async function loadStoreOrders() {
             <td>${o.customer_phone || 'N/A'}</td>
             <td>${o.service_name}</td>
             <td>${o.quantity}</td>
-            <td>$${o.price * o.quantity}</td>
+            <td>€${o.price * o.quantity}</td>
             <td><span class="badge bg-${o.status === 'Completed' ? 'success' : 'warning'}">${o.status}</span></td>
             <td>${o.notes ? '<small>' + o.notes + '</small>' : '–'}</td>
             <td>

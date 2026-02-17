@@ -362,7 +362,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:#f5f5f0}
       <div class="add-form">
         <div class="field"><label>Name</label><input id="svcName" placeholder="Item name"></div>
         <div class="field"><label>Description</label><input id="svcDesc" placeholder="Short description"></div>
-        <div class="field"><label>Price ($)</label><input id="svcPrice" type="number" placeholder="0"></div>
+        <div class="field"><label>Price (€)</label><input id="svcPrice" type="number" placeholder="0"></div>
         <div>
           <div class="section-label">Product Image (optional)</div>
           <div class="upload-zone" onclick="document.getElementById('productInput').click()" style="padding:10px">
@@ -706,7 +706,7 @@ async function loadMyServices() {
       <div class="service-item-info">
         <div class="service-item-name">${s.name}</div>
         <div class="service-item-desc">${s.description||""}</div>
-        <div class="service-item-price">$${s.price}</div>
+        <div class="service-item-price">€${s.price}</div>
       </div>
       <button class="service-item-del" onclick="deleteItem('${s.id}')" title="Delete">🗑</button>
     </div>`).join("");
@@ -763,7 +763,7 @@ async function loadStoreOrders() {
       <td>${o.customer_name||"Guest"}</td>
       <td>${o.service_name}</td>
       <td>${o.quantity}</td>
-      <td><strong>$${o.price*o.quantity}</strong></td>
+      <td><strong>€${o.price*o.quantity}</strong></td>
       <td><span class="${o.status==="Completed"?"badge-complete":"badge-pending"}">${o.status}</span></td>
       <td>${o.status!=="Completed"
         ?`<button class="btn-complete" onclick="completeOrder('${o.id}')">Complete</button>`

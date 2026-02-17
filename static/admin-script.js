@@ -102,13 +102,13 @@ function renderOrderTable(tableId, orders, showActions) {
 
         if (tableId === "allOrdersTable") {
             row += `
-                <td>$${order.price || 'N/A'}</td>
+                <td>€${order.price || 'N/A'}</td>
                 <td>${statusBadge}</td>
                 <td>${new Date(order.created_at || Date.now()).toLocaleDateString()}</td>
             `
         } else {
             row += `
-                <td>$${order.price || 'N/A'}</td>
+                <td>€${order.price || 'N/A'}</td>
                 <td>${new Date(order.created_at || Date.now()).toLocaleDateString()}</td>
             `
         }

@@ -662,7 +662,7 @@ async function showOrders() {
       <div class="oitem">
         <div class="odetail">
           <div class="oname">${o.service_name}</div>
-          <div class="ometa">${o.store_name} &middot; $${o.price} &middot; ${new Date(o.created_at).toLocaleDateString()}</div>
+          <div class="ometa">${o.store_name} &middot; €${o.price} &middot; ${new Date(o.created_at).toLocaleDateString()}</div>
         </div>
         <span class="obadge ${o.status === 'Completed' ? 'done' : 'pending'}">${o.status}</span>
       </div>`).join('');

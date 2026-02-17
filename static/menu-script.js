@@ -1,6 +1,7 @@
 const API = "http://127.0.0.1:8000"
 
 let storeId = null
+let store = null
 let cart = []
 let cartModal = null
 let successModal = null
@@ -19,17 +20,12 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('tableNumber').value = tableFromUrl
     }
     
-    // Order type toggle
-    document.getElementById('dineIn').addEventListener('change', toggleOrderType)
-    document.getElementById('delivery').addEventListener('change', toggleOrderType)
-    
     loadStoreMenu()
 })
 
-function toggleOrderType() {
-    const isDineIn = document.getElementById('dineIn').checked
-    document.getElementById('tableSection').style.display = isDineIn ? 'block' : 'none'
-    document.getElementById('deliverySection').style.display = isDineIn ? 'none' : 'block'
+// Dine-in when store category is Food & Drinks
+function isDineInStore() {
+    return store && store.category === 'food'
 }
 
 async function loadStoreMenu() {
@@ -42,11 +38,16 @@ async function loadStoreMenu() {
         // Load store info
         const storesRes = await fetch(`${API}/stores`)
         const stores = await storesRes.json()
-        const store = stores.find(s => s.id === storeId)
+        store = stores.find(s => s.id === storeId)
         
         if (store) {
             document.getElementById('storeName').innerText = store.name
             document.getElementById('storeDesc').innerText = store.description
+            // Order type from store category: Food & Drinks = dine-in, else delivery
+            const dineIn = store.category === 'food'
+            document.getElementById('orderTypeSelector').style.display = 'none'
+            document.getElementById('tableSection').style.display = dineIn ? 'block' : 'none'
+            document.getElementById('deliverySection').style.display = dineIn ? 'none' : 'block'
         }
 
         // Load menu items
@@ -72,7 +73,7 @@ async function loadStoreMenu() {
                         <div class="card-body">
                             <h5 class="card-title">${item.name}</h5>
                             <p class="card-text text-muted">${item.description}</p>
-                            <h4 class="text-primary">$${item.price}</h4>
+                            <h4 class="text-primary">€${item.price}</h4>
                         </div>
                         <div class="card-footer bg-white">
                             <div class="d-flex align-items-center">
@@ -164,10 +165,10 @@ function showCart() {
             <div class="d-flex justify-content-between align-items-center mb-3 p-3 border rounded">
                 <div>
                     <h6 class="mb-0">${item.name}</h6>
-                    <small class="text-muted">$${item.price} × ${item.quantity}</small>
+                    <small class="text-muted">€${item.price} × ${item.quantity}</small>
                 </div>
                 <div class="d-flex align-items-center">
-                    <strong class="me-3">$${(item.price * item.quantity).toFixed(2)}</strong>
+                    <strong class="me-3">€${(item.price * item.quantity).toFixed(2)}</strong>
                     <button onclick="removeFromCart(${index})" class="btn btn-sm btn-danger">
                         🗑️
                     </button>
@@ -176,8 +177,9 @@ function showCart() {
         `
     })
 
-    // Update summary
-    const orderType = document.getElementById('dineIn').checked ? 'Dine-In' : 'Takeout/Delivery'
+    // Update summary (dine-in when store is Food & Drinks)
+    const isDineIn = isDineInStore()
+    const orderType = isDineIn ? 'Dine-In' : 'Takeout/Delivery'
     const tableNumber = document.getElementById('tableNumber').value
     const deliveryAddress = document.getElementById('deliveryAddress').value
     const customerName = document.getElementById('customerName').value
@@ -185,7 +187,7 @@ function showCart() {
 
     document.getElementById('summaryOrderType').innerText = orderType
     
-    if (document.getElementById('dineIn').checked) {
+    if (isDineIn) {
         document.getElementById('summaryTable').style.display = 'block'
         document.getElementById('summaryTable').querySelector('span').innerText = tableNumber || 'Not specified'
         document.getElementById('summaryDelivery').style.display = 'none'
@@ -220,7 +222,7 @@ async function placeOrder() {
         return
     }
 
-    const isDineIn = document.getElementById('dineIn').checked
+    const isDineIn = isDineInStore()
     const tableNumber = document.getElementById('tableNumber').value
     const deliveryAddress = document.getElementById('deliveryAddress').value
 
@@ -247,7 +249,7 @@ async function placeOrder() {
                 headers: {"Content-Type": "application/json"},
                 body: JSON.stringify({
                     service_id: item.id,
-                    order_type: isDineIn ? "dine-in" : "delivery",
+                    order_type: isDineIn ? 'dine-in' : 'delivery',
                     table_number: tableNumber,
                     delivery_address: deliveryAddress,
                     customer_name: customerName,
@@ -265,7 +267,7 @@ async function placeOrder() {
         document.getElementById('orderConfirmation').innerHTML = `
             <p><strong>Order Type:</strong> ${isDineIn ? 'Dine-In' : 'Delivery'}</p>
             ${isDineIn ? `<p><strong>Table:</strong> ${tableNumber}</p>` : `<p><strong>Delivery to:</strong> ${deliveryAddress}</p>`}
-            <p><strong>Total:</strong> $${totalPrice.toFixed(2)}</p>
+            <p><strong>Total:</strong> €${totalPrice.toFixed(2)}</p>
             <p class="text-muted mt-3">We'll have your order ready soon!</p>
         `
 

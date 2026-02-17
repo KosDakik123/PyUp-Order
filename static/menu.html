@@ -54,20 +54,22 @@
 <!-- Order Type Selection -->
 <div class="container mt-4">
     <div class="order-type-selector">
-        <h5 class="mb-3">Choose Order Type:</h5>
-        <div class="btn-group w-100" role="group">
-            <input type="radio" class="btn-check" name="orderType" id="dineIn" value="dine-in" checked>
-            <label class="btn btn-outline-primary" for="dineIn">
-                🍽️ Dine-In (Table Service)
-            </label>
+        <div id="orderTypeSelector">
+            <h5 class="mb-3">Choose Order Type:</h5>
+            <div class="btn-group w-100" role="group">
+                <input type="radio" class="btn-check" name="orderType" id="dineIn" value="dine-in" checked>
+                <label class="btn btn-outline-primary" for="dineIn">
+                    🍽️ Dine-In (Table Service)
+                </label>
 
-            <input type="radio" class="btn-check" name="orderType" id="delivery" value="delivery">
-            <label class="btn btn-outline-success" for="delivery">
-                🚗 Takeout/Delivery
-            </label>
+                <input type="radio" class="btn-check" name="orderType" id="delivery" value="delivery">
+                <label class="btn btn-outline-success" for="delivery">
+                    🚗 Takeout/Delivery
+                </label>
+            </div>
         </div>
 
-        <!-- Dine-in Table Number -->
+        <!-- Dine-in Table Number (shown when store is Food & Drinks) -->
         <div id="tableSection" class="mt-3">
             <label class="form-label">Table Number:</label>
             <input type="text" id="tableNumber" class="form-control" placeholder="Enter table number">
@@ -101,7 +103,7 @@
 
 <!-- Cart Summary (Floating) -->
 <div id="cartButton" class="cart-badge" onclick="showCart()" style="display:none;">
-    🛒 Cart (<span id="cartCount">0</span>) - $<span id="cartTotal">0</span>
+    🛒 Cart (<span id="cartCount">0</span>) - €<span id="cartTotal">0</span>
 </div>
 
 <!-- Cart Modal -->
@@ -128,7 +130,7 @@
                     <p><strong>Name:</strong> <span id="summaryName"></span></p>
                     <p><strong>Phone:</strong> <span id="summaryPhone"></span></p>
                     <hr>
-                    <h4>Total: $<span id="modalCartTotal">0</span></h4>
+                    <h4>Total: €<span id="modalCartTotal">0</span></h4>
                 </div>
             </div>
             <div class="modal-footer">

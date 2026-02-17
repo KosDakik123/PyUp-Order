@@ -340,7 +340,7 @@ body.theme-warm{--bg:#fdf6ec;--surface:#fff;--text:#2d1e0f;--muted:#8a6a4a;--bor
 
 <!-- Floating cart -->
 <div class="cart-float" id="cartFloat" onclick="openDrawer()">
-  🛒 <span id="floatCount">0</span> items · $<span id="floatTotal">0.00</span>
+  🛒 <span id="floatCount">0</span> items · €<span id="floatTotal">0.00</span>
 </div>
 
 <!-- Cart drawer overlay -->
@@ -355,7 +355,7 @@ body.theme-warm{--bg:#fdf6ec;--surface:#fff;--text:#2d1e0f;--muted:#8a6a4a;--bor
   <div class="drawer-body" id="drawerItems"></div>
 
   <div class="drawer-form">
-    <div class="form-row">
+    <div class="form-row" id="orderTypeRow" style="display:none">
       <label>Order Type</label>
       <div class="order-type-btns">
         <button class="order-type-btn active" id="btnDine" onclick="setOrderType('dine-in')">🍽 Dine-In</button>
@@ -389,7 +389,7 @@ body.theme-warm{--bg:#fdf6ec;--surface:#fff;--text:#2d1e0f;--muted:#8a6a4a;--bor
   <div class="drawer-footer">
     <div class="cart-total-row">
       <span>Total</span>
-      <span>$<span id="drawerTotal">0.00</span></span>
+      <span>€<span id="drawerTotal">0.00</span></span>
     </div>
     <button class="btn-place" onclick="placeOrder()">✅ Place Order</button>
   </div>
@@ -478,6 +478,10 @@ async function loadStore() {
   if (store.footer_text) document.getElementById("storeFooter").textContent = store.footer_text;
   if (tableParam) document.getElementById("tableNum").value = tableParam;
 
+  // Order type from store category: Food & Drinks = dine-in, else delivery
+  orderType = (store.category === "food") ? "dine-in" : "delivery";
+  setOrderType(orderType);
+
   // Sticky nav reveal
   window.addEventListener("scroll", () => {
     const n = document.getElementById("navName");
@@ -529,7 +533,7 @@ function renderGrid(c) {
         <div class="item-name">${s.name}</div>
         <div class="item-desc">${s.description || ""}</div>
         <div class="item-footer">
-          <span class="item-price">$${s.price}</span>
+          <span class="item-price">€${s.price}</span>
           ${addBtn(s)}
         </div>
       </div>
@@ -548,7 +552,7 @@ function renderList(c) {
           <div class="item-desc">${s.description || ""}</div>
         </div>
         <div class="item-footer">
-          <span class="item-price">$${s.price}</span>
+          <span class="item-price">€${s.price}</span>
           ${addBtn(s)}
         </div>
       </div>
@@ -565,7 +569,7 @@ function renderMinimal(c) {
         <div class="item-desc">${s.description || ""}</div>
       </div>
       <div class="item-right">
-        <span class="item-price">$${s.price}</span>
+        <span class="item-price">€${s.price}</span>
         ${s.image_url ? `<img src="${s.image_url}" class="item-img" loading="lazy">` : `<div class="no-img">🛍</div>`}
         ${addBtn(s)}
       </div>
@@ -585,7 +589,7 @@ function renderMagazine(c) {
         <div class="item-name" style="font-size:1.5rem;font-weight:800;margin-bottom:10px">${hero.name}</div>
         <div class="item-desc" style="font-size:.9rem;line-height:1.6;margin-bottom:20px">${hero.description || ""}</div>
         <div style="display:flex;align-items:center;gap:14px">
-          <span class="item-price" style="font-size:1.4rem">$${hero.price}</span>
+          <span class="item-price" style="font-size:1.4rem">€${hero.price}</span>
           ${addBtn(hero)}
         </div>
       </div>
@@ -597,7 +601,7 @@ function renderMagazine(c) {
           <div class="item-name">${s.name}</div>
           <div class="item-desc">${s.description || ""}</div>
           <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
-            <span class="item-price">$${s.price}</span>
+            <span class="item-price">€${s.price}</span>
             ${addBtn(s)}
           </div>
         </div>
@@ -614,7 +618,7 @@ function renderMasonry(c) {
         <div class="item-name">${s.name}</div>
         <div class="item-desc">${s.description || ""}</div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
-          <span class="item-price">$${s.price}</span>
+          <span class="item-price">€${s.price}</span>
           ${addBtn(s)}
         </div>
       </div>
@@ -659,7 +663,7 @@ function renderDrawerItems() {
         : `<div class="cart-row-img">🛍</div>`}
       <div class="cart-row-info">
         <div class="cart-row-name">${c.name}</div>
-        <div class="cart-row-price">$${c.price} each</div>
+        <div class="cart-row-price">€${c.price} each</div>
       </div>
       <div class="qty-ctrl">
         <button class="qty-btn" onclick="changeQty('${c.id}',-1)">−</button>
@@ -714,7 +718,7 @@ async function placeOrder() {
   closeDrawer();
   const total = cart.reduce((a,c)=>a+c.price*c.qty,0);
   document.getElementById("successMsg").textContent =
-    orderType==="dine-in" ? `Table ${table} — $${total.toFixed(2)} total 🍽` : `Delivery to ${addr} — $${total.toFixed(2)} 🚗`;
+    orderType==="dine-in" ? `Table ${table} — €${total.toFixed(2)} total 🍽` : `Delivery to ${addr} — €${total.toFixed(2)} 🚗`;
   document.getElementById("successOverlay").classList.add("open");
   cart=[];updateCartUI();
 }

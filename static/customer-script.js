@@ -197,7 +197,7 @@ async function showMyOrders() {
       <div class="order-row">
         <div style="flex:1">
           <div style="font-weight:700;font-size:.9rem">${o.service_name}</div>
-          <div style="font-size:.78rem;color:var(--muted);margin-top:2px">${o.store_name} · $${o.price}</div>
+          <div style="font-size:.78rem;color:var(--muted);margin-top:2px">${o.store_name} · €${o.price}</div>
           <div style="font-size:.76rem;color:var(--muted)">${new Date(o.created_at).toLocaleDateString()}</div>
         </div>
         <span class="order-badge ${o.status === 'Completed' ? 'badge-completed' : 'badge-pending'}">${o.status}</span>
