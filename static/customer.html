@@ -6,6 +6,7 @@
 <title>PyUp — Discover Stores</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css">
 <style>
 /* ─── RESET ─── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -14,6 +15,7 @@
   --ink:#0f0f0f;--muted:#8a8a80;--accent:#e8420e;
   --r:14px;--fh:'Syne',sans-serif;--fb:'DM Sans',sans-serif;
 }
+[data-theme="dark"]{--bg:#0f172a;--white:#1e293b;--border:#334155;--ink:#f1f5f9;--muted:#94a3b8}
 html{scroll-behavior:smooth}
 body{font-family:var(--fb);background:var(--bg);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased}
 a{color:inherit;text-decoration:none}
@@ -241,11 +243,14 @@ nav{
     <button onclick="runSearch()">Search</button>
   </div>
 
+  <button id="themeBtn" type="button" class="nbtn" title="Toggle dark mode" style="padding:6px 12px;font-size:1.1rem;flex-shrink:0">🌙</button>
   <div class="nav-btns" id="navBtns">
     <button class="nbtn" onclick="openM('loginModal')">Sign In</button>
     <button class="nbtn solid" onclick="openM('registerModal')">Register</button>
   </div>
 </nav>
+<script src="theme.js"></script>
+<script>window.themeInit();var tb=document.getElementById('themeBtn');if(tb){tb.textContent=document.documentElement.getAttribute('data-theme')==='dark'?'☀️':'🌙';tb.onclick=function(){var t=window.themeToggle();tb.textContent=t==='dark'?'☀️':'🌙';};}</script>
 
 <!-- ══ HERO (shown when NOT logged in) ══ -->
 <section class="hero" id="heroSection">
@@ -741,7 +746,7 @@ function renderGrid() {
       <div class="empty">
         <span class="eico">${activeSearch ? '🔍' : meta.icon}</span>
         <h3>${activeSearch ? 'No results found' : 'No stores here yet'}</h3>
-        <p>${activeSearch ? 'Try different keywords or clear the search' : 'No ' + meta.label + ' stores added yet'}</p>
+        <p>${activeSearch ? 'Try different keywords or clear the search' : 'No ' + meta.label + ' stores added yet. Check back later or try another category.'}</p>
       </div>`;
     return;
   }

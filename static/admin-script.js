@@ -1,6 +1,8 @@
 const API = "http://127.0.0.1:8000"
 
 async function loadAdminDashboard() {
+    var allTbody = document.getElementById("allOrdersTable")
+    if (allTbody) allTbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm me-2"></div>Loading orders…</td></tr>'
     await loadStats()
     await loadAnalytics()
     await loadAllOrdersAdmin()
@@ -141,8 +143,10 @@ function renderOrderTable(tableId, orders, showActions) {
         const colspan = showActions ? 8 : 6
         tbody.innerHTML = `
             <tr>
-                <td colspan="${colspan}" class="text-center text-muted py-4">
-                    No orders in this category
+                <td colspan="${colspan}" class="text-center py-5">
+                    <div class="text-muted">📦</div>
+                    <div class="fw-bold mt-2">No orders in this category</div>
+                    <div class="small text-muted mt-1">Orders will appear here when customers place them.</div>
                 </td>
             </tr>
         `

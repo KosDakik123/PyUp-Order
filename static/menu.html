@@ -3,7 +3,10 @@
 <head>
     <title>Menu - Order Now</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="theme.css">
     <style>
+        body { background: var(--app-bg,#f8f9fa); color: var(--app-text,#212529); }
+        [data-theme="dark"] .order-type-selector, [data-theme="dark"] .card { background: var(--app-surface); border-color: var(--app-border); color: var(--app-text); }
         .menu-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -14,6 +17,7 @@
             transition: all 0.3s;
             cursor: pointer;
             border: 2px solid transparent;
+            min-height: 44px;
         }
         .menu-item:hover {
             transform: translateY(-5px);
@@ -31,6 +35,13 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             cursor: pointer;
             z-index: 1000;
+            min-height: 48px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        @media (max-width: 640px) {
+            .cart-badge { left: 16px; right: 16px; bottom: 16px; border-radius: 14px; padding: 14px 20px; padding-bottom: max(14px, calc(16px + env(safe-area-inset-bottom))); }
         }
         .order-type-selector {
             background: white;
@@ -39,6 +50,12 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             margin-bottom: 20px;
         }
+        .menu-loading { text-align: center; padding: 48px 20px; color: #6c757d; }
+        .menu-loading .spinner { width: 40px; height: 40px; border: 3px solid #dee2e6; border-top-color: #667eea; border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 16px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .menu-empty-state { text-align: center; padding: 48px 24px; }
+        .menu-empty-state .icon { font-size: 3rem; margin-bottom: 12px; opacity: .8; }
+        .menu-empty-state p { color: #6c757d; margin: 0 0 20px; }
     </style>
 </head>
 <body class="bg-light">
@@ -46,10 +63,13 @@
 <!-- Store Header -->
 <div class="menu-header">
     <div class="container">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button id="themeBtn" type="button" title="Toggle dark mode" style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:1.1rem">🌙</button></div>
         <h1 id="storeName">🍽️ Loading...</h1>
         <p id="storeDesc" class="lead"></p>
     </div>
 </div>
+<script src="theme.js"></script>
+<script>window.themeInit();var tb=document.getElementById('themeBtn');if(tb){tb.textContent=document.documentElement.getAttribute('data-theme')==='dark'?'☀️':'🌙';tb.onclick=function(){var t=window.themeToggle();tb.textContent=t==='dark'?'☀️':'🌙';};}</script>
 
 <!-- Order Type Selection -->
 <div class="container mt-4">
@@ -101,9 +121,9 @@
     <div id="menuItems" class="row"></div>
 </div>
 
-<!-- Cart Summary (Floating) -->
+<!-- Cart Summary (Floating / sticky on mobile) -->
 <div id="cartButton" class="cart-badge" onclick="showCart()" style="display:none;">
-    🛒 Cart (<span id="cartCount">0</span>) - €<span id="cartTotal">0</span>
+    🛒 Cart (<span id="cartCount">0</span>) · €<span id="cartTotal">0</span> — Place order
 </div>
 
 <!-- Cart Modal -->

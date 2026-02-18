@@ -3,6 +3,8 @@
 <head>
     <title>Admin Panel</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="theme.css">
+    <style>body{background:var(--app-bg,#f8f9fa);color:var(--app-text,#212529)} [data-theme="dark"] .card{background:var(--app-surface);border-color:var(--app-border);color:var(--app-text)} [data-theme="dark"] .table{color:var(--app-text)}</style>
 </head>
 <body class="bg-light">
 
@@ -10,11 +12,14 @@
     <div class="container-fluid">
         <span class="navbar-brand">⚙️ Admin Panel</span>
         <div>
+            <button id="themeBtn" type="button" class="btn btn-outline-light btn-sm me-2" title="Toggle dark mode">🌙</button>
             <a href="qr-generator.html" class="btn btn-success btn-sm me-2">📱 Generate QR Code</a>
             <button onclick="logout()" class="btn btn-danger btn-sm">Logout</button>
         </div>
     </div>
 </nav>
+<script src="theme.js"></script>
+<script>window.themeInit();var b=document.getElementById('themeBtn');if(b){b.textContent=document.documentElement.getAttribute('data-theme')==='dark'?'☀️':'🌙';b.onclick=function(){var t=window.themeToggle();b.textContent=t==='dark'?'☀️':'🌙';};}</script>
 
 <div class="container mt-4">
 

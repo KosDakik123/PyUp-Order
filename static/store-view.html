@@ -6,6 +6,7 @@
 <title>Store</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -19,6 +20,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 body.theme-dark{--bg:#111;--surface:#1e1e1e;--text:#f0f0f0;--muted:#aaa;--border:#333}
 body.theme-minimal{--bg:#fff;--surface:#fff;--text:#111;--muted:#666;--border:#eee}
 body.theme-warm{--bg:#fdf6ec;--surface:#fff;--text:#2d1e0f;--muted:#8a6a4a;--border:#e8d5bb}
+[data-theme="dark"] body{--bg:#0f172a;--surface:#1e293b;--text:#f1f5f9;--muted:#94a3b8;--border:#334155}
 
 /* ── STORE HEADER ────────────────────────── */
 .store-header{position:relative;overflow:hidden;min-height:220px;
@@ -189,8 +191,12 @@ body.theme-warm{--bg:#fdf6ec;--surface:#fff;--text:#2d1e0f;--muted:#8a6a4a;--bor
 .btn-add:hover{filter:brightness(1.12)}
 .btn-add:active{transform:scale(.95)}
 .btn-add.added{background:#17a2b8}
+@media(max-width:640px){
+  .btn-add,.item-card{cursor:pointer}
+  .btn-add{min-height:44px;padding:12px 20px}
+}
 
-/* ── FLOATING CART ───────────────────────── */
+/* ── FLOATING CART (sticky on mobile) ─────── */
 .cart-float{
   position:fixed;bottom:24px;right:24px;
   background:var(--accent);color:#fff;
@@ -200,8 +206,21 @@ body.theme-warm{--bg:#fdf6ec;--surface:#fff;--text:#2d1e0f;--muted:#8a6a4a;--bor
   font-weight:700;font-size:.9rem;
   display:none;align-items:center;gap:10px;
   transition:transform .2s;
+  min-height:48px;min-width:48px;justify-content:center;
+  padding-bottom:max(14px,env(safe-area-inset-bottom));
 }
 .cart-float:hover{transform:scale(1.04)}
+@media(max-width:640px){
+  .cart-float{left:16px;right:16px;bottom:16px;border-radius:14px;padding:14px 20px;padding-bottom:max(14px,calc(16px + env(safe-area-inset-bottom)))}
+}
+.menu-loading{text-align:center;padding:48px 20px;color:var(--muted)}
+.menu-loading .spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.menu-empty{text-align:center;padding:48px 24px}
+.menu-empty .e{font-size:3rem;display:block;margin-bottom:12px;opacity:.8}
+.menu-empty h4{margin:0 0 8px;font-size:1.1rem}
+.menu-empty p{color:var(--muted);font-size:.9rem;margin:0 0 20px}
+.menu-empty a{display:inline-block;padding:12px 20px;background:var(--accent);color:#fff;border-radius:50px;font-weight:700;text-decoration:none;font-size:.9rem}
 
 /* ── CART DRAWER ─────────────────────────── */
 .drawer-overlay{
@@ -321,10 +340,13 @@ body.theme-warm{--bg:#fdf6ec;--surface:#fff;--text:#2d1e0f;--muted:#8a6a4a;--bor
 <!-- Sticky nav -->
 <div class="store-nav">
   <span class="store-name-small" id="navName"></span>
-  <div style="display:flex;gap:8px;align-items:center">
+  <div style="display:flex;gap:10px;align-items:center">
+    <button id="themeBtn" type="button" title="Toggle dark mode" style="background:none;border:none;cursor:pointer;font-size:1.2rem;padding:4px;line-height:1">🌙</button>
     <span style="font-size:.78rem;color:var(--muted)" id="navCategory"></span>
   </div>
 </div>
+<script src="theme.js"></script>
+<script>window.themeInit();(function(){var b=document.getElementById('themeBtn');if(b){b.textContent=document.documentElement.getAttribute('data-theme')==='dark'?'☀️':'🌙';b.onclick=function(){var t=window.themeToggle();b.textContent=t==='dark'?'☀️':'🌙';};}})();</script>
 
 <!-- Welcome banner -->
 <div class="welcome-banner" id="welcomeBanner" style="display:none"></div>
@@ -493,12 +515,13 @@ async function loadStore() {
 
 // ── Load + render menu ────────────────────
 async function loadMenu() {
+  const container = document.getElementById("menuContainer");
+  container.innerHTML = '<div class="menu-loading"><div class="spinner"></div><div>Loading menu…</div></div>';
   const res = await fetch(`${API}/stores/${storeId}/services`);
   services = await res.json();
-  const container = document.getElementById("menuContainer");
 
   if (!services.length) {
-    container.innerHTML = `<div class="menu-empty"><span class="e">📭</span><h4 style="margin-top:12px">No items yet</h4></div>`;
+    container.innerHTML = '<div class="menu-empty"><span class="e">📭</span><h4>No items yet</h4><p>This store hasn’t added any items. Check back later.</p></div>';
     return;
   }
 

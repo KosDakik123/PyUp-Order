@@ -34,6 +34,9 @@ async function loadStoreMenu() {
         return
     }
 
+    const menuContainer = document.getElementById('menuItems')
+    menuContainer.innerHTML = '<div class="menu-loading"><div class="spinner"></div><div>Loading menu…</div></div>'
+
     try {
         // Load store info
         const storesRes = await fetch(`${API}/stores`)
@@ -59,8 +62,10 @@ async function loadStoreMenu() {
 
         if (menuItems.length === 0) {
             menuContainer.innerHTML = `
-                <div class="col-12 text-center text-muted py-5">
-                    <h4>Menu coming soon!</h4>
+                <div class="col-12 menu-empty-state">
+                    <div class="icon">📭</div>
+                    <h4>No items yet</h4>
+                    <p>This menu is empty. Check back later.</p>
                 </div>
             `
             return
