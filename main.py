@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from jose import jwt
 import os, uuid
 
@@ -338,3 +338,128 @@ def admin_orders(db: Session = Depends(get_db), admin=Depends(get_admin)):
              "price": o.service.price, "quantity": o.quantity,
              "order_type": o.order_type, "created_at": o.created_at}
             for o in orders]
+
+
+# ============= ADMIN ANALYTICS =============
+
+from datetime import datetime, timedelta
+from collections import defaultdict
+
+@app.get("/admin/analytics")
+def admin_analytics(db: Session = Depends(get_db), admin=Depends(get_admin)):
+    """Returns revenue and order stats for the admin dashboard: by month, by store, and totals."""
+    orders = db.query(models.Order).options(
+        joinedload(models.Order.service),
+        joinedload(models.Order.store),
+    ).all()
+    now = datetime.utcnow()
+    this_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if this_month_start.month == 1:
+        last_month_start = this_month_start.replace(year=now.year - 1, month=12)
+    else:
+        last_month_start = this_month_start.replace(month=this_month_start.month - 1)
+
+    total_revenue = 0
+    revenue_this_month = 0
+    revenue_last_month = 0
+    orders_this_month = 0
+    orders_last_month = 0
+    by_month = defaultdict(lambda: {"revenue": 0, "order_count": 0})
+    by_store = defaultdict(lambda: {"store_name": "", "revenue": 0, "order_count": 0})
+
+    for o in orders:
+        rev = (o.service.price or 0) * (o.quantity or 1)
+        total_revenue += rev
+        created = o.created_at or now
+        month_key = created.strftime("%Y-%m")
+        by_month[month_key]["revenue"] += rev
+        by_month[month_key]["order_count"] += 1
+
+        if created >= this_month_start:
+            revenue_this_month += rev
+            orders_this_month += 1
+        elif last_month_start <= created < this_month_start:
+            revenue_last_month += rev
+            orders_last_month += 1
+
+        by_store[o.store_id]["store_name"] = o.store.name
+        by_store[o.store_id]["revenue"] += rev
+        by_store[o.store_id]["order_count"] += 1
+
+    # Last 12 months, sorted descending
+    month_list = sorted(by_month.keys(), reverse=True)[:12]
+    by_month_list = [{"month": m, "revenue": round(by_month[m]["revenue"], 2), "order_count": by_month[m]["order_count"]} for m in month_list]
+    by_store_list = [{"store_id": sid, "store_name": s["store_name"], "revenue": round(s["revenue"], 2), "order_count": s["order_count"]} for sid, s in by_store.items()]
+
+    return {
+        "total_revenue": round(total_revenue, 2),
+        "revenue_this_month": round(revenue_this_month, 2),
+        "revenue_last_month": round(revenue_last_month, 2),
+        "orders_this_month": orders_this_month,
+        "orders_last_month": orders_last_month,
+        "total_orders": sum(by_month[m]["order_count"] for m in by_month),
+        "by_month": by_month_list,
+        "by_store": by_store_list,
+    }
+
+
+@app.get("/my-stores/analytics")
+def my_stores_analytics(db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """Returns revenue and order stats for stores owned by the current user (for My Store dashboard)."""
+    store_ids = [s.id for s in db.query(models.Store).filter(models.Store.owner_id == user.id).all()]
+    if not store_ids:
+        return {
+            "total_revenue": 0, "revenue_this_month": 0, "revenue_last_month": 0,
+            "orders_this_month": 0, "orders_last_month": 0, "total_orders": 0,
+            "by_month": [], "by_store": [],
+        }
+    orders = db.query(models.Order).filter(models.Order.store_id.in_(store_ids)).options(
+        joinedload(models.Order.service),
+        joinedload(models.Order.store),
+    ).all()
+    now = datetime.utcnow()
+    this_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if this_month_start.month == 1:
+        last_month_start = this_month_start.replace(year=now.year - 1, month=12)
+    else:
+        last_month_start = this_month_start.replace(month=this_month_start.month - 1)
+
+    total_revenue = 0
+    revenue_this_month = 0
+    revenue_last_month = 0
+    orders_this_month = 0
+    orders_last_month = 0
+    by_month = defaultdict(lambda: {"revenue": 0, "order_count": 0})
+    by_store = defaultdict(lambda: {"store_name": "", "revenue": 0, "order_count": 0})
+
+    for o in orders:
+        rev = (o.service.price or 0) * (o.quantity or 1)
+        total_revenue += rev
+        created = o.created_at or now
+        month_key = created.strftime("%Y-%m")
+        by_month[month_key]["revenue"] += rev
+        by_month[month_key]["order_count"] += 1
+        if created >= this_month_start:
+            revenue_this_month += rev
+            orders_this_month += 1
+        elif last_month_start <= created < this_month_start:
+            revenue_last_month += rev
+            orders_last_month += 1
+        by_store[o.store_id]["store_name"] = o.store.name
+        by_store[o.store_id]["revenue"] += rev
+        by_store[o.store_id]["order_count"] += 1
+
+    month_list = sorted(by_month.keys(), reverse=True)[:12]
+    by_month_list = [{"month": m, "revenue": round(by_month[m]["revenue"], 2), "order_count": by_month[m]["order_count"]} for m in month_list]
+    by_store_list = [{"store_id": sid, "store_name": s["store_name"], "revenue": round(s["revenue"], 2), "order_count": s["order_count"]} for sid, s in by_store.items()]
+
+    return {
+        "total_revenue": round(total_revenue, 2),
+        "revenue_this_month": round(revenue_this_month, 2),
+        "revenue_last_month": round(revenue_last_month, 2),
+        "orders_this_month": orders_this_month,
+        "orders_last_month": orders_last_month,
+        "total_orders": sum(by_month[m]["order_count"] for m in by_month),
+        "by_month": by_month_list,
+        "by_store": by_store_list,
+    }

@@ -2,7 +2,75 @@ const API = "http://127.0.0.1:8000"
 
 async function loadAdminDashboard() {
     await loadStats()
+    await loadAnalytics()
     await loadAllOrdersAdmin()
+}
+
+async function loadAnalytics() {
+    try {
+        const res = await fetch(`${API}/admin/analytics`, {
+            headers: { "Authorization": "Bearer " + getToken() }
+        })
+        if (!res.ok) return
+        const data = await res.json()
+
+        document.getElementById("analyticsTotalRevenue").textContent = "€" + (data.total_revenue ?? 0).toFixed(2)
+        document.getElementById("analyticsThisMonth").textContent = "€" + (data.revenue_this_month ?? 0).toFixed(2)
+        document.getElementById("analyticsThisMonthOrders").textContent = (data.orders_this_month ?? 0) + " orders"
+        document.getElementById("analyticsLastMonth").textContent = "€" + (data.revenue_last_month ?? 0).toFixed(2)
+        document.getElementById("analyticsLastMonthOrders").textContent = (data.orders_last_month ?? 0) + " orders"
+
+        const byMonth = data.by_month || []
+        const byStore = data.by_store || []
+
+        const maxMonthRev = byMonth.length ? Math.max(...byMonth.map(m => m.revenue)) : 1
+        const maxStoreRev = byStore.length ? Math.max(...byStore.map(s => s.revenue)) : 1
+
+        const monthChartEl = document.getElementById("analyticsByMonthChart")
+        monthChartEl.innerHTML = byMonth.slice(0, 12).map(m => {
+            const pct = maxMonthRev ? (100 * m.revenue / maxMonthRev) : 0
+            return `<div class="d-flex align-items-center mb-2">
+                <span class="text-nowrap me-2" style="width:72px">${m.month}</span>
+                <div class="flex-grow-1" style="height:24px;background:#e9ecef;border-radius:6px;overflow:hidden">
+                    <div style="width:${pct}%;height:100%;background:linear-gradient(90deg,#0d6efd,#0a58ca);border-radius:6px;transition:width .4s"></div>
+                </div>
+                <span class="ms-2 fw-bold" style="min-width:70px;text-align:right">€${m.revenue.toFixed(2)}</span>
+            </div>`
+        }).join("") || '<p class="text-muted mb-0">No data yet</p>'
+
+        const storeChartEl = document.getElementById("analyticsByStoreChart")
+        storeChartEl.innerHTML = byStore.map(s => {
+            const pct = maxStoreRev ? (100 * s.revenue / maxStoreRev) : 0
+            const name = (s.store_name || "Unknown").length > 20 ? (s.store_name || "Unknown").slice(0, 18) + "…" : (s.store_name || "Unknown")
+            return `<div class="d-flex align-items-center mb-2">
+                <span class="text-truncate me-2" style="max-width:120px" title="${s.store_name || ""}">${name}</span>
+                <div class="flex-grow-1" style="height:24px;background:#e9ecef;border-radius:6px;overflow:hidden">
+                    <div style="width:${pct}%;height:100%;background:linear-gradient(90deg,#198754,#146c43);border-radius:6px;transition:width .4s"></div>
+                </div>
+                <span class="ms-2 fw-bold" style="min-width:70px;text-align:right">€${s.revenue.toFixed(2)}</span>
+            </div>`
+        }).join("") || '<p class="text-muted mb-0">No data yet</p>'
+
+        const monthTable = document.getElementById("analyticsByMonthTable")
+        monthTable.innerHTML = byMonth.map(m => `
+            <tr>
+                <td>${m.month}</td>
+                <td class="text-end">€${m.revenue.toFixed(2)}</td>
+                <td class="text-end">${m.order_count}</td>
+            </tr>
+        `).join("") || '<tr><td colspan="3" class="text-center text-muted">No data</td></tr>'
+
+        const storeTable = document.getElementById("analyticsByStoreTable")
+        storeTable.innerHTML = byStore.map(s => `
+            <tr>
+                <td>${s.store_name || "—"}</td>
+                <td class="text-end">€${s.revenue.toFixed(2)}</td>
+                <td class="text-end">${s.order_count}</td>
+            </tr>
+        `).join("") || '<tr><td colspan="3" class="text-center text-muted">No data</td></tr>'
+    } catch (err) {
+        console.error("Error loading analytics:", err)
+    }
 }
 
 async function loadStats() {

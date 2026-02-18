@@ -156,6 +156,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:#f5f5f0}
   transition:all .2s;
 }
 .store-page-link:hover{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+a.btn-analytics-cta:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(102,126,234,.4)}
 </style>
 </head>
 <body>
@@ -427,6 +428,20 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:#f5f5f0}
     <span id="createNewStatus" style="font-size:.8rem;margin-left:12px"></span>
   </div>
 
+  <!-- ── Analytics Dashboard (bottom CTA, shown when user has stores) ── -->
+  <div id="analyticsCtaSection" class="card-section" style="display:none;border:2px dashed #e0d4f0;background:linear-gradient(135deg,#faf8fc 0%,#f5f0fa 100%)">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px">
+      <div>
+        <div class="section-label" style="color:#6b5b95">Analytics</div>
+        <h3 style="font-weight:800;font-size:1.05rem;margin:0;color:#1a1a1a">View your store performance</h3>
+        <p style="color:#666;font-size:.85rem;margin:4px 0 0">Revenue, orders, and trends in one dashboard.</p>
+      </div>
+      <a href="store-analytics.html" class="btn-analytics-cta" style="display:inline-flex;align-items:center;gap:8px;padding:14px 28px;border-radius:12px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-weight:700;font-size:.9rem;text-decoration:none;box-shadow:0 4px 14px rgba(102,126,234,.35);transition:transform .2s,box-shadow .2s">
+        📊 Open Analytics Dashboard
+      </a>
+    </div>
+  </div>
+
 </div><!-- /page -->
 
 <script src="script.js"></script>
@@ -482,6 +497,56 @@ function selectTheme(t) {
 
 function syncColors() {
   // live preview of colors could go here
+}
+
+// ── Save store (style, theme, colors, basic info) ─────────────────────────
+async function saveStore() {
+  if (!currentStoreId) return;
+  const statusEl = document.getElementById("saveStatus");
+  statusEl.textContent = "";
+  const payload = {
+    name:                 document.getElementById("custName").value.trim(),
+    description:          document.getElementById("custDesc").value.trim(),
+    tagline:              document.getElementById("custTagline").value.trim() || null,
+    welcome_message:      document.getElementById("custWelcome").value.trim() || null,
+    footer_text:          document.getElementById("custFooter").value.trim() || null,
+    category:             selectedCategory,
+    menu_style:           selectedStyle,
+    theme:                selectedTheme,
+    primary_color:        document.getElementById("cPrimary").value,
+    secondary_color:      document.getElementById("cSecondary").value,
+    accent_color:         document.getElementById("cAccent").value,
+    banner_image_url:     uploadedUrls.banner || null,
+    logo_url:             uploadedUrls.logo || null,
+  };
+  try {
+    statusEl.style.color = "#888";
+    statusEl.textContent = "Saving…";
+    const res = await fetch(`${API}/stores/${currentStoreId}/theme`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + getToken() },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      statusEl.style.color = "#38a169";
+      statusEl.textContent = "✓ Saved";
+      // Update in-memory store so tabs/display stay in sync
+      const idx = allMyStores.findIndex(s => s.id === currentStoreId);
+      if (idx >= 0) {
+        allMyStores[idx] = { ...allMyStores[idx], ...payload };
+        document.getElementById("storeTitle").textContent = payload.name;
+        document.getElementById("storeDesc").textContent = payload.description;
+      }
+      setTimeout(() => { statusEl.textContent = ""; }, 2000);
+    } else {
+      const d = await res.json().catch(() => ({}));
+      statusEl.style.color = "#e53e3e";
+      statusEl.textContent = "✗ " + (d.detail || "Save failed");
+    }
+  } catch (err) {
+    statusEl.style.color = "#e53e3e";
+    statusEl.textContent = "✗ " + (err.message || "Save failed");
+  }
 }
 
 // Fix back button based on role
@@ -542,7 +607,9 @@ async function loadMyStore() {
   buildCatGrid("createCatGrid", "pickCategory");
   if (!allMyStores.length) {
     document.getElementById("createSection").style.display="block";
+    document.getElementById("analyticsCtaSection").style.display="none";
   } else {
+    document.getElementById("analyticsCtaSection").style.display="block";
     renderStoreTabs();
     loadStoreById(allMyStores[0].id);
   }
