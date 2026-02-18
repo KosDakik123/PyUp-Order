@@ -1,14 +1,22 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
+from dotenv import load_dotenv
+load_dotenv()
+
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session, joinedload
 from jose import jwt
 import os, uuid
 
 import models
 from database import engine, SessionLocal
-from auth import hash_password, verify_password, create_access_token, SECRET_KEY, ALGORITHM
+from auth import (
+    hash_password, verify_password, create_access_token,
+    generate_verification_token, send_verification_email,
+    SECRET_KEY, ALGORITHM,
+)
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -19,18 +27,20 @@ def _migrate(db):
     def has(table, col):
         return col in [c["name"] for c in insp.get_columns(table)]
     pairs = [
-        ("stores", "category",          "VARCHAR DEFAULT 'services'"),
-        ("stores", "menu_style",         "VARCHAR DEFAULT 'grid'"),
-        ("stores", "primary_color",      "VARCHAR DEFAULT '#667eea'"),
-        ("stores", "secondary_color",    "VARCHAR DEFAULT '#764ba2'"),
-        ("stores", "accent_color",       "VARCHAR DEFAULT '#28a745'"),
-        ("stores", "theme",              "VARCHAR DEFAULT 'modern'"),
-        ("stores", "banner_image_url",   "VARCHAR"),
-        ("stores", "logo_url",           "VARCHAR"),
-        ("stores", "tagline",            "VARCHAR"),
-        ("stores", "welcome_message",    "TEXT"),
-        ("stores", "footer_text",        "VARCHAR"),
-        ("services", "image_url",        "VARCHAR"),
+        ("stores",   "category",          "VARCHAR DEFAULT 'services'"),
+        ("stores",   "menu_style",         "VARCHAR DEFAULT 'grid'"),
+        ("stores",   "primary_color",      "VARCHAR DEFAULT '#667eea'"),
+        ("stores",   "secondary_color",    "VARCHAR DEFAULT '#764ba2'"),
+        ("stores",   "accent_color",       "VARCHAR DEFAULT '#28a745'"),
+        ("stores",   "theme",              "VARCHAR DEFAULT 'modern'"),
+        ("stores",   "banner_image_url",   "VARCHAR"),
+        ("stores",   "logo_url",           "VARCHAR"),
+        ("stores",   "tagline",            "VARCHAR"),
+        ("stores",   "welcome_message",    "TEXT"),
+        ("stores",   "footer_text",        "VARCHAR"),
+        ("services", "image_url",          "VARCHAR"),
+        ("users",    "is_verified",        "BOOLEAN DEFAULT 1"),
+        ("users",    "verification_token", "VARCHAR"),
     ]
     for table, col, typedef in pairs:
         if not has(table, col):
@@ -45,7 +55,6 @@ finally: _db.close()
 UPLOAD_DIR = "static/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# Allowed image dimensions
 PRODUCT_SIZES = {(400, 400), (800, 600)}
 BANNER_SIZES  = {(1200, 400), (1920, 480)}
 LOGO_SIZES    = {(200, 200), (400, 400)}
@@ -87,18 +96,32 @@ def get_admin(user=Depends(get_current_user)):
 # ============= AUTH =============
 
 @app.post("/register")
-def register(data: dict, db: Session = Depends(get_db)):
+def register(data: dict, request: Request, db: Session = Depends(get_db)):
     existing = db.query(models.User).filter(
         (models.User.username == data["username"]) | (models.User.email == data["email"])
     ).first()
     if existing:
         raise HTTPException(status_code=400, detail="Username or email already exists")
+
+    token = generate_verification_token()
     user = models.User(
-        username=data["username"], email=data["email"],
-        hashed_password=hash_password(data["password"])
+        username=data["username"],
+        email=data["email"],
+        hashed_password=hash_password(data["password"]),
+        is_verified=False,
+        verification_token=token,
     )
-    db.add(user); db.commit()
-    return {"message": "User created"}
+    db.add(user)
+    db.commit()
+
+    base_url = str(request.base_url).rstrip("/")
+    email_sent = send_verification_email(data["email"], token, base_url)
+
+    return {
+        "message": "Registration successful. Please check your email to verify your account.",
+        "email_sent": email_sent,
+        **({"dev_verify_token": token} if os.getenv("APP_ENV", "development") == "development" else {}),
+    }
 
 
 @app.post("/login")
@@ -106,8 +129,76 @@ def login(data: dict, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.username == data["username"]).first()
     if not user or not verify_password(data["password"], user.hashed_password):
         raise HTTPException(status_code=400, detail="Invalid credentials")
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=403,
+            detail="Please verify your email address before logging in. Check your inbox for the verification link."
+        )
     token = create_access_token(user.id)
     return {"access_token": token, "role": user.role, "user_id": user.id}
+
+
+@app.get("/verify-email")
+def verify_email(token: str, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.verification_token == token).first()
+
+    if not user:
+        return HTMLResponse(content=_verification_page(
+            success=False,
+            message="This verification link is invalid or has already been used."
+        ), status_code=400)
+
+    if user.is_verified:
+        return HTMLResponse(content=_verification_page(
+            success=True,
+            message="Your email is already verified. You can log in."
+        ))
+
+    user.is_verified = True
+    user.verification_token = None
+    db.commit()
+
+    return HTMLResponse(content=_verification_page(
+        success=True,
+        message="Your email has been verified! You can now log in."
+    ))
+
+
+@app.post("/resend-verification")
+def resend_verification(data: dict, request: Request, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == data.get("email", "")).first()
+    if not user:
+        return {"message": "If that email is registered and unverified, a new link has been sent."}
+    if user.is_verified:
+        return {"message": "This account is already verified."}
+    new_token = generate_verification_token()
+    user.verification_token = new_token
+    db.commit()
+    base_url = str(request.base_url).rstrip("/")
+    send_verification_email(user.email, new_token, base_url)
+    return {"message": "Verification email resent. Please check your inbox."}
+
+
+def _verification_page(success: bool, message: str) -> str:
+    icon  = "✅" if success else "❌"
+    color = "#28a745" if success else "#dc3545"
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+  <title>Email Verification</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light d-flex justify-content-center align-items-center vh-100">
+  <div class="card p-5 text-center shadow" style="max-width:460px;width:100%">
+    <div style="font-size:3rem">{icon}</div>
+    <h3 class="mt-3" style="color:{color}">
+      {"Email Verified!" if success else "Verification Failed"}
+    </h3>
+    <p class="text-muted mt-2">{message}</p>
+    <a href="/static/login.html" class="btn btn-primary mt-3">Go to Login</a>
+  </div>
+</body>
+</html>"""
 
 
 # ============= IMAGE UPLOAD =============
@@ -143,12 +234,12 @@ def _store_dict(s):
     return {
         "id": s.id, "name": s.name, "description": s.description,
         "owner_id": s.owner_id, "owner_name": s.owner.username,
-        "category":       s.category       or "services",
-        "menu_style":     s.menu_style      or "grid",
-        "primary_color":  s.primary_color   or "#667eea",
-        "secondary_color":s.secondary_color or "#764ba2",
-        "accent_color":   s.accent_color    or "#28a745",
-        "theme":          s.theme           or "modern",
+        "category":        s.category        or "services",
+        "menu_style":      s.menu_style       or "grid",
+        "primary_color":   s.primary_color    or "#667eea",
+        "secondary_color": s.secondary_color  or "#764ba2",
+        "accent_color":    s.accent_color     or "#28a745",
+        "theme":           s.theme            or "modern",
         "banner_image_url": s.banner_image_url,
         "logo_url":         s.logo_url,
         "tagline":          s.tagline,
@@ -172,7 +263,6 @@ def create_store(data: dict, db: Session = Depends(get_db), user=Depends(get_cur
 
 @app.get("/stores")
 def get_all_stores(category: str = None, q: str = None, db: Session = Depends(get_db)):
-    """Get stores, optionally filtered by category and/or search query."""
     query = db.query(models.Store)
     if category and category != "all":
         query = query.filter(models.Store.category == category)
@@ -221,7 +311,6 @@ def delete_store(store_id: str, db: Session = Depends(get_db), user=Depends(get_
         raise HTTPException(status_code=404, detail="Store not found")
     if store.owner_id != user.id and user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
-    # Cascade-delete orders and services first
     db.query(models.Order).filter(models.Order.store_id == store_id).delete()
     db.query(models.Service).filter(models.Service.store_id == store_id).delete()
     db.delete(store)
@@ -347,7 +436,6 @@ from collections import defaultdict
 
 @app.get("/admin/analytics")
 def admin_analytics(db: Session = Depends(get_db), admin=Depends(get_admin)):
-    """Returns revenue and order stats for the admin dashboard: by month, by store, and totals."""
     orders = db.query(models.Order).options(
         joinedload(models.Order.service),
         joinedload(models.Order.store),
@@ -374,19 +462,16 @@ def admin_analytics(db: Session = Depends(get_db), admin=Depends(get_admin)):
         month_key = created.strftime("%Y-%m")
         by_month[month_key]["revenue"] += rev
         by_month[month_key]["order_count"] += 1
-
         if created >= this_month_start:
             revenue_this_month += rev
             orders_this_month += 1
         elif last_month_start <= created < this_month_start:
             revenue_last_month += rev
             orders_last_month += 1
-
         by_store[o.store_id]["store_name"] = o.store.name
         by_store[o.store_id]["revenue"] += rev
         by_store[o.store_id]["order_count"] += 1
 
-    # Last 12 months, sorted descending
     month_list = sorted(by_month.keys(), reverse=True)[:12]
     by_month_list = [{"month": m, "revenue": round(by_month[m]["revenue"], 2), "order_count": by_month[m]["order_count"]} for m in month_list]
     by_store_list = [{"store_id": sid, "store_name": s["store_name"], "revenue": round(s["revenue"], 2), "order_count": s["order_count"]} for sid, s in by_store.items()]
@@ -405,7 +490,6 @@ def admin_analytics(db: Session = Depends(get_db), admin=Depends(get_admin)):
 
 @app.get("/my-stores/analytics")
 def my_stores_analytics(db: Session = Depends(get_db), user=Depends(get_current_user)):
-    """Returns revenue and order stats for stores owned by the current user (for My Store dashboard)."""
     store_ids = [s.id for s in db.query(models.Store).filter(models.Store.owner_id == user.id).all()]
     if not store_ids:
         return {

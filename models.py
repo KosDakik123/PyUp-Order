@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, Text
+from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, Text, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
@@ -27,6 +27,12 @@ class User(Base):
     email = Column(String, unique=True)
     hashed_password = Column(String)
     role = Column(String, default="user")
+
+    # ── Email verification ──────────────────────────────────────────────────
+    is_verified        = Column(Boolean, default=False)
+    verification_token = Column(String, nullable=True)
+    # ────────────────────────────────────────────────────────────────────────
+
     orders = relationship("Order", back_populates="user", foreign_keys="Order.user_id")
     stores = relationship("Store", back_populates="owner")
 
