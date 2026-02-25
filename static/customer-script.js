@@ -1,4 +1,4 @@
-const API = "http://127.0.0.1:8000";
+const API = "http://100.65.57.7";
 
 const CATEGORY_META = {
   all:           { label: "All Stores",       icon: "🏠" },
