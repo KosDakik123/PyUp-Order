@@ -105,4 +105,23 @@ df -h
 
 ---
 
+
+---
+
+Status/Name@
+VrstaA
+TTL3600
+Vrijednost185.40.234.37
+
+FieldValueStatus/Name
+www
+Vrsta
+CNAME
+TTL3600
+Vrijednost
+pyuporder.tail74d12c.ts.net
+
+---
+
+
 *PyUp-Order Server Guide v1.0*
